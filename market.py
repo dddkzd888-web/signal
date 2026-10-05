@@ -242,6 +242,11 @@ class Gateway:
                 self.status['used'] += 1
             return merged,name
 
+    def refresh_metadata(self):
+        from metadata import refresh_metadata
+        with self.lock:
+            return refresh_metadata(self.store,self._connect())
+
     def close(self):
         with self.lock:
             if self.ctx:

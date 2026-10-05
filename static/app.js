@@ -23,13 +23,20 @@ function render(){
   const dates=matches.map(r=>r.signal_date).sort().reverse();$('latestSignal').textContent=dates[0]||'—';
   $('candidateBadge').textContent=matches.length;$('allBadge').textContent=state.results.length;
   $('candidatesTab').classList.toggle('active',mode==='candidates');$('allTab').classList.toggle('active',mode==='all');
+  for(const [id,key,title] of [['sectorFilter','sectors','全部板块'],['indexFilter','indices','全部指数']]){
+    const el=$(id),current=el.value,names=[...new Set(state.results.flatMap(r=>r[key]||[]))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+    const options='<option value="">'+title+'</option>'+names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')+'<option value="__unknown">未分类</option>';
+    if(el.innerHTML!==options){el.innerHTML=options;el.value=current;}
+  }
+  $('metadataNote').textContent=`市值单位：美元 · 分类为富途行业 / 概念板块 · 指数可多重归属 · ${state.metadata_updated_at?'更新 '+new Date(state.metadata_updated_at).toLocaleString('zh-CN'):'尚未取得分类，请扫描更新'}${state.metadata_error?' · 分类更新失败，保留旧数据：'+state.metadata_error:''}`;
   let rows=mode==='candidates'?matches:state.results;
   const search=$('search').value.trim().toUpperCase();if(search)rows=rows.filter(r=>`${r.symbol} ${r.name}`.toUpperCase().includes(search));
-  rows=[...rows].sort((a,b)=>Number(b.matched)-Number(a.matched)||(a.priority||99)-(b.priority||99)||(b.signal_date||'').localeCompare(a.signal_date||''));
+  for(const [id,key] of [['sectorFilter','sectors'],['indexFilter','indices']]){const v=$(id).value;if(v)rows=rows.filter(r=>v==='__unknown'?!(r[key]||[]).length:(r[key]||[]).includes(v));}
+  rows=[...rows].sort((a,b)=>($('sortBy').value!=='signal'?(a.market_cap==null?(b.market_cap==null?0:1):b.market_cap==null?-1:$('sortBy').value==='cap_desc'?b.market_cap-a.market_cap:a.market_cap-b.market_cap):0)||Number(b.matched)-Number(a.matched)||(a.priority||99)-(b.priority||99)||(b.signal_date||'').localeCompare(a.signal_date||''));
   $('resultRows').innerHTML=rows.map(r=>{
     const valid=['ok','insufficient','stale'].includes(r.status);
     const reason=r.matched?(r.priority===2?'<span class="signal-pill red">第二优先 · BBUY ↑</span><span class="signal-note">缺少放量确认</span>':'<span class="signal-pill">第一优先 · 黄色放量</span><span class="signal-pill red">BBUY ↑</span>'):`<span class="signal-note" title="${esc(r.error||'本窗口无组合信号')}">${esc(r.error||(r.latest_heavy?'最新日放量 · 暂无组合':r.latest_bbuy?'最新日红柱 · 暂无组合':'本窗口无组合信号'))}</span>`;
-    return `<tr data-symbol="${esc(r.symbol)}" class="${selected===r.symbol?'selected':''}"><td><div class="ticker">${esc(r.symbol.replace(/^US\./,''))}${r.stale?'<span class="stale-tag">缓存待更新</span>':''}</div><div class="company">${esc(r.name)}</div></td><td class="price-cell"><span class="num">${valid?fmt(r.close):'—'}</span><small class="${tone(r.change)}">${valid?signed(r.change):''}</small></td><td class="num">${esc(r.signal_date||'—')}</td><td class="num ${r.matched?'accent':''}">${fmt(r.volume_ratio??r.latest_volume_ratio)}×</td><td class="num ${tone(r.vwap_distance)}">${signed(r.vwap_distance)}</td><td>${reason}</td></tr>`;
+    return `<tr data-symbol="${esc(r.symbol)}" class="${selected===r.symbol?'selected':''}"><td><div class="ticker">${esc(r.symbol.replace(/^US\./,''))}${r.stale?'<span class="stale-tag">缓存待更新</span>':''}</div><div class="company">${esc(r.name)}</div></td><td class="classification-cell"><span class="num" title="${esc(r.market_cap_at||'市值未知')}">${r.market_cap==null?'—':fmt(r.market_cap/1e8)+' 亿'}</span><small title="${esc((r.sectors||[]).join(' / '))}">${esc((r.sectors||[]).slice(0,3).join(' / ')||'未分类')}${(r.sectors||[]).length>3?' 等 '+r.sectors.length+' 个板块':''}</small><small>${esc((r.indices||[]).join(' / ')||'无所选指数归属')}</small></td><td class="price-cell"><span class="num">${valid?fmt(r.close):'—'}</span><small class="${tone(r.change)}">${valid?signed(r.change):''}</small></td><td class="num">${esc(r.signal_date||'—')}</td><td class="num ${r.matched?'accent':''}">${fmt(r.volume_ratio??r.latest_volume_ratio)}×</td><td class="num ${tone(r.vwap_distance)}">${signed(r.vwap_distance)}</td><td>${reason}</td></tr>`;
   }).join('');
   $('resultRows').querySelectorAll('tr').forEach(row=>row.addEventListener('click',()=>selectStock(row.dataset.symbol)));
   $('emptyState').hidden=rows.length>0;
@@ -77,3 +84,5 @@ $('exportBtn').onclick=()=>{window.location.href='/api/export?matched='+(mode===
 $('helpBtn').onclick=()=>$('helpDialog').showModal();$('closeHelp').onclick=()=>$('helpDialog').close();$('helpDialog').onclick=e=>{if(e.target===$('helpDialog')){const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)e.target.close();}};
 $('zoomIn').onclick=()=>chart.zoom(.8);$('zoomOut').onclick=()=>chart.zoom(1.25);$('chartReset').onclick=()=>chart.reset();$('showKdj').onchange=()=>{chart.showKdj=$('showKdj').checked;chart.draw();};
 poll();setInterval(poll,1800);
+
+['sortBy','sectorFilter','indexFilter'].forEach(id=>$(id).addEventListener('change',render));

@@ -33,7 +33,11 @@ class ScanManager:
             snapshot = json.loads(json.dumps(self.state,allow_nan=False))
         cutoff = last_closed_session()
         snapshot['historical'] = bool(snapshot.get('cutoff') and snapshot['cutoff']!=cutoff)
+        metadata = self.store.get('stock_metadata',{})
+        snapshot['metadata_updated_at'] = self.store.get('metadata_updated_at')
+        snapshot['metadata_error'] = self.store.get('metadata_error')
         for result in snapshot['results']:
+            result.update(metadata.get(result['symbol'],dict(market_cap=None,market_cap_at=None,sectors=[],indices=[])))
             if result.get('date') and result['date']<cutoff:
                 result.update(stale=True,matched=False)
                 if result.get('status')=='ok':
@@ -85,6 +89,12 @@ class ScanManager:
             self.state.update(running=True,total=len(symbols),completed=0,failed=0,current=None,cancelled=False,results=[],error=None)
             self.settings,self.symbols = settings,symbols
         try:
+            if hasattr(self.gateway,'refresh_metadata'):
+                try:
+                    self.gateway.refresh_metadata()
+                    self.store.set('metadata_error',None)
+                except Exception as exc:
+                    self.store.set('metadata_error',str(exc))
             cutoff = last_closed_session()
             with self.lock:
                 self.state['cutoff'] = cutoff
@@ -239,14 +249,14 @@ def create_app(manager):
         output = io.StringIO()
         output.write('\ufeff')
         writer = csv.writer(output)
-        writer.writerow(['代码','名称','状态','命中','优先级','收盘日期','收盘价','放量日期','红柱日期','信号日期','信号成交量倍数','信号后涨幅%','错误','规则参数','数据截止'])
+        writer.writerow(['代码','名称','状态','命中','优先级','收盘日期','收盘价','放量日期','红柱日期','信号日期','信号成交量倍数','信号后涨幅%','错误','市值美元','市值时间','板块','所属指数','规则参数','数据截止'])
         only = request.args.get('matched','1')=='1'
         for r in snapshot['results']:
             if only and not r.get('matched'):
                 continue
             values = [r.get(k,'') for k in ('symbol','name','status','matched','priority','date','close','volume_date','bbuy_date','signal_date','volume_ratio','since_signal','error')]
             values = ["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in values]
-            writer.writerow(values+[json.dumps(manager.settings,ensure_ascii=False),snapshot.get('cutoff')])
+            writer.writerow(values+[r.get('market_cap'),r.get('market_cap_at'),' / '.join(r.get('sectors',[])),' / '.join(r.get('indices',[])),json.dumps(manager.settings,ensure_ascii=False),snapshot.get('cutoff')])
         return Response(output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename="screener-results.csv"'})
 
     return app
