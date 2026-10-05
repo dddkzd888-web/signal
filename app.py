@@ -30,7 +30,15 @@ class ScanManager:
 
     def snapshot(self):
         with self.lock:
-            return json.loads(json.dumps(self.state,allow_nan=False))
+            snapshot = json.loads(json.dumps(self.state,allow_nan=False))
+        cutoff = last_closed_session()
+        snapshot['historical'] = bool(snapshot.get('cutoff') and snapshot['cutoff']!=cutoff)
+        for result in snapshot['results']:
+            if result.get('date') and result['date']<cutoff:
+                result.update(stale=True,matched=False)
+                if result.get('status')=='ok':
+                    result.update(status='stale',error='数据未到最新已收盘日，仅供历史查看')
+        return snapshot
 
     def start(self,symbols,settings,force=False):
         with self.lock:
@@ -53,19 +61,23 @@ class ScanManager:
         latest = rows[-1]
         minimum = max(30,settings['volume_n']+int(settings['previous_volume']))
         sufficient = len(rows)>=minimum
+        cached = self.store.bars(symbol)
+        stale = latest['date']<cutoff or bool(cached and cached['asof']!=cutoff)
         result = dict(symbol=symbol,name=name,status='ok' if sufficient else 'insufficient',error=None if sufficient else f'历史不足：需要至少 {minimum} 根日线',
                       close=latest['close'],date=latest['date'],bars=len(rows),
                       change=(latest['close']/rows[-2]['close']-1)*100 if len(rows)>1 else None,
                       latest_volume_ratio=latest['volume_ratio'],
                       vwap_distance=(latest['close']/latest['vwap']-1)*100 if latest['vwap'] else None,
-                      long_history=len(rows)>=330,**{k:v for k,v in signal.items() if k!='events'})
+                      long_history=len(rows)>=330,stale=stale,**{k:v for k,v in signal.items() if k!='events'})
         if not sufficient:
             result['matched'] = False
+        if stale:
+            result.update(matched=False,status='stale',error='数据未到最新已收盘日，仅供历史查看')
         result['historical_count'] = len(signal['events'])
         result['latest_heavy'],result['latest_bbuy'] = latest['heavy'],latest['bbuy']
         events = [{**e,'since_signal':(latest['close']/e['signal_close']-1)*100} for e in signal['events']]
         with self.lock:
-            self.chart_cache[symbol] = dict(symbol=symbol,name=name,rows=rows,events=events,settings=settings,cutoff=cutoff,long_history=len(rows)>=330)
+            self.chart_cache[symbol] = dict(symbol=symbol,name=name,rows=rows,events=events,settings=settings,cutoff=cutoff,long_history=len(rows)>=330,stale=stale,data_date=latest['date'])
         return result
 
     def run(self,symbols,settings,force=False):
@@ -116,7 +128,6 @@ class ScanManager:
                     results.append(dict(symbol=symbol,name=symbol,status='uncached',matched=False,error='尚无缓存，请扫描更新'))
                 else:
                     result = self.evaluate(symbol,cached['rows'],cached['name'],settings,cutoff)
-                    result['stale'] = cached['asof']!=cutoff
                     results.append(result)
             self.state.update(results=results,total=len(symbols),completed=sum(r['status']!='uncached' for r in results),failed=0,cutoff=cutoff,cancelled=False,error=None)
             self.store.set('last_scan',self.state)
@@ -134,7 +145,6 @@ class ScanManager:
         self.evaluate(symbol,cached['rows'],cached['name'],settings,cutoff)
         with self.lock:
             result = dict(self.chart_cache[symbol])
-        result['stale'] = cached['asof']!=cutoff
         return result
 
 
@@ -176,7 +186,7 @@ def create_app(manager):
 
     @app.get('/api/status')
     def status():
-        return jsonify(opend=manager.gateway.status,scan={k:v for k,v in manager.snapshot().items() if k!='results'},settings=manager.settings,symbols=manager.symbols,cutoff=last_closed_session(),cached=len(manager.store.cached_symbols()))
+        return jsonify(application='volume-bbuy-screener',opend=manager.gateway.status,scan={k:v for k,v in manager.snapshot().items() if k!='results'},settings=manager.settings,symbols=manager.symbols,cutoff=last_closed_session(),cached=len(manager.store.cached_symbols()))
 
     @app.post('/api/connect')
     def connect():

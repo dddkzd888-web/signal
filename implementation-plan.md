@@ -27,29 +27,29 @@
 
 Files: indicators.py, tests/test_indicators.py。
 Interfaces: enrich(bars, settings)->list[dict]；match_signals(rows, settings)->dict。
-- [ ] 写独立手算测试：递推 SMA、交叉等号边界、放量均值含/不含当前、BBUY、缺失前次交叉不生背离、附近配合不引用未来、放量单信号不命中。
-- [ ] 运行 unittest，确认缺失实现而失败。
-- [ ] 实现 VWAP、MACD、KDJ、RSI、底部柱线与原公式信号，输出 JSON 安全值。
-- [ ] 运行全部指标测试并提交。
+- [x] 写独立手算测试：递推 SMA、交叉等号边界、放量均值含/不含当前、BBUY、缺失前次交叉不生背离、附近配合不引用未来、放量单信号不命中。
+- [x] 运行 unittest，确认缺失实现而失败。
+- [x] 实现 VWAP、MACD、KDJ、RSI、底部柱线与原公式信号，输出 JSON 安全值。
+- [x] 运行全部指标测试并提交。
 
 ### Task 2: 行情、缓存与服务
 
 Files: market.py, app.py, requirements.txt, tests/test_market.py, tests/test_app.py。
 Consumes: Task 1 的 enrich/match_signals。
 Produces: /api/status、/api/settings、/api/scan、/api/scan/cancel、/api/results、/api/chart/<symbol>、/api/export。
-- [ ] 写交易日历提前收盘与周末测试、代码验证测试、设置边界测试、缓存复权刷新测试、服务同源和忙碌取消恢复测试；先运行确认失败。
-- [ ] 实现 OpenD 串行行情连接，额度明细、分页、SQLite 缓存、异步扫描状态、重算与 CSV 导出。
-- [ ] 运行整套测试；用 QQQ/SOXX 真行情验证，保存验证摘要，提交。
+- [x] 写交易日历提前收盘与周末测试、代码验证测试、设置边界测试、缓存复权刷新测试、服务同源和忙碌取消恢复测试；先运行确认失败。
+- [x] 实现 OpenD 串行行情连接，额度明细、分页、SQLite 缓存、异步扫描状态、重算与 CSV 导出。
+- [x] 运行整套测试；用 QQQ/SOXX 真行情验证，保存验证摘要，提交。
 
 ### Task 3: 页面、图表与交付
 
 Files: static/index.html, static/style.css, static/app.js, static/chart.js, start.command, README.md。
 Consumes: Task 2 的 HTTP JSON 接口。
 Produces: 中文网站、本机 URL、可重复启动入口。
-- [ ] 实现深色界面、股票池导入、组合筛选、候选/全部结果、历史信号表和 CSV。
-- [ ] 实现共享日期轴的价格、量、MACD、KDJ、底部指标图表、缩放、拖动、悬停与箭头；黄色 K 线及红色 BBUY 柱必须直接来自计算结果。
-- [ ] 在真实行情上检查页面加载、扫描/取消、重算、空结果、导入、选股、图表和导出，修复观察到的问题。
-- [ ] 完整测试、独立代码审查、启动脚本验证；保存中文使用说明并打开网站，提交。
+- [x] 实现深色界面、股票池导入、组合筛选、候选/全部结果、历史信号表和 CSV。
+- [x] 实现共享日期轴的价格、量、MACD、KDJ、底部指标图表、缩放、拖动、悬停与箭头；黄色 K 线及红色 BBUY 柱必须直接来自计算结果。
+- [x] 在真实行情上检查页面加载、扫描/取消、重算、空结果、导入、选股、图表和导出，修复观察到的问题。
+- [x] 完整测试、独立代码审查、启动脚本验证；保存中文使用说明并打开网站，提交。
 
 ## Execution decisions
 

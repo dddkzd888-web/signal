@@ -1,6 +1,7 @@
 import unittest
 import tempfile
 import threading
+import pandas as pd
 from app import create_app, ScanManager
 from market import Store
 from indicators import DEFAULTS
@@ -12,7 +13,7 @@ class FakeGateway:
     def history(self, symbol, cutoff, force=False):
         if symbol == 'US.BAD':
             raise RuntimeError('无行情权限')
-        return [dict(date=f'2025-{i//28+1:02d}-{i%28+1:02d}',open=10,close=10,high=11,low=9,volume=100) for i in range(100)], symbol
+        return [dict(date=d.strftime('%Y-%m-%d'),open=10,close=10,high=11,low=9,volume=100) for d in pd.bdate_range(end=cutoff,periods=100)], symbol
 
 
 class AppTests(unittest.TestCase):
@@ -68,6 +69,21 @@ class AppTests(unittest.TestCase):
         self.manager.gateway.history = original
         self.manager.run(['US.QQQ'],DEFAULTS,False)
         self.assertEqual(self.manager.snapshot()['completed'],1)
+
+    def test_old_completed_pair_is_historical_not_a_current_candidate(self):
+        bars=[dict(date=d.strftime('%Y-%m-%d'),open=10,close=10,high=10,low=10,volume=100) for d in pd.bdate_range(end='2026-09-01',periods=60)]
+        bars[-2].update(open=9,close=9,high=9,low=9)
+        bars[-1].update(open=12,close=12,high=12,low=12,volume=1000)
+        self.store.save_bars('US.QQQ',bars,'2026-09-01','QQQ')
+        self.manager.recompute(DEFAULTS,['US.QQQ'])
+        result=self.manager.snapshot()['results'][0]
+        self.assertFalse(result['matched'])
+        self.assertTrue(result['stale'])
+        self.assertGreater(result['historical_count'],0)
+        for _ in range(2):
+            detail=self.manager.chart('US.QQQ')
+            self.assertTrue(detail['stale'])
+            self.assertEqual(detail['data_date'],'2026-09-01')
 
 
 if __name__ == '__main__':

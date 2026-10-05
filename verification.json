@@ -1,0 +1,25 @@
+{
+  "cutoff": "2026-10-02",
+  "scanned": 20,
+  "failed": 0,
+  "default_matches": 0,
+  "remaining": 980,
+  "core_formula_checks": [
+    {
+      "symbol": "US.QQQ",
+      "bars": 1255,
+      "yellow_candles": 75,
+      "bbuy_events": 66,
+      "combination_events": 3,
+      "last_date": "2026-10-02"
+    },
+    {
+      "symbol": "US.SOXX",
+      "bars": 1255,
+      "yellow_candles": 133,
+      "bbuy_events": 76,
+      "combination_events": 5,
+      "last_date": "2026-10-02"
+    }
+  ]
+}
