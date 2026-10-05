@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 const defaultPool='SPY QQQ SOXX IWM DIA AAPL MSFT NVDA AMZN GOOGL META TSLA AMD AVGO MU INTC NFLX PLTR COIN SMH';
 const numericKeys=['volume_n','volume_mult','vwap_n','sigma','lookback','pair_gap'];
-const boolKeys=['previous_volume','bullish_only','require_vwap','require_rising','require_macd','require_bottom'];
+const boolKeys=['include_secondary','previous_volume','bullish_only','require_vwap','require_rising','require_macd','require_bottom'];
 let state={results:[],running:false,total:0,completed:0,failed:0},mode='candidates',selected=null,chartData=null;
 let pending=false,initialized=false,polling=false,chartSerial=0,toastTimer=null;
 const chart=new SignalChart($('chart'),$('chartTooltip'));
@@ -14,7 +14,7 @@ async function api(path,body){const res=await fetch(path,{method:body===undefine
 function readRules(){const p={};numericKeys.forEach(k=>p[k]=Number($(k).value));boolKeys.forEach(k=>p[k]=$(k).checked);return p;}
 function writeRules(p){numericKeys.forEach(k=>$(k).value=p[k]);boolKeys.forEach(k=>$(k).checked=p[k]);}
 function poolCount(){const codes=$('symbols').value.trim().split(/[\s,;，；]+/).filter(Boolean);$('poolCount').textContent=`${new Set(codes).size} 只`;}
-function describeRules(p){const relation=p.pair_gap===0?'放量与红柱同日':`放量与红柱相距 ≤ ${p.pair_gap} 日`;$('ruleDescription').textContent=`${p.previous_volume?'此前 ':''}${p.volume_n} 日均量 × ${p.volume_mult} · ${relation} · 最近 ${p.lookback} 个交易日`;}
+function describeRules(p){const relation=p.pair_gap===0?'放量与红柱同日':`放量与红柱相距 ≤ ${p.pair_gap} 日`;$('ruleDescription').textContent=`${p.previous_volume?'此前 ':''}${p.volume_n} 日均量 × ${p.volume_mult} · ${relation} · 最近 ${p.lookback} 个交易日${p.include_secondary?' · 包含仅红柱的第二优先':''}`;}
 function busyControls(){const busy=state.running||pending;['scanBtn','applyBtn','defaultBtn','importBtn'].forEach(id=>$(id).disabled=busy);$('cancelBtn').hidden=!state.running;$('cancelBtn').disabled=pending;}
 function render(){
   const matches=state.results.filter(r=>r.matched&&r.status==='ok');$('matchCount').textContent=matches.length;
@@ -25,10 +25,10 @@ function render(){
   $('candidatesTab').classList.toggle('active',mode==='candidates');$('allTab').classList.toggle('active',mode==='all');
   let rows=mode==='candidates'?matches:state.results;
   const search=$('search').value.trim().toUpperCase();if(search)rows=rows.filter(r=>`${r.symbol} ${r.name}`.toUpperCase().includes(search));
-  rows=[...rows].sort((a,b)=>Number(b.matched)-Number(a.matched)||(b.signal_date||'').localeCompare(a.signal_date||''));
+  rows=[...rows].sort((a,b)=>Number(b.matched)-Number(a.matched)||(a.priority||99)-(b.priority||99)||(b.signal_date||'').localeCompare(a.signal_date||''));
   $('resultRows').innerHTML=rows.map(r=>{
     const valid=['ok','insufficient','stale'].includes(r.status);
-    const reason=r.matched?'<span class="signal-pill">黄色放量</span><span class="signal-pill red">BBUY ↑</span>':`<span class="signal-note" title="${esc(r.error||'本窗口无组合信号')}">${esc(r.error||(r.latest_heavy?'最新日放量 · 暂无组合':r.latest_bbuy?'最新日红柱 · 暂无组合':'本窗口无组合信号'))}</span>`;
+    const reason=r.matched?(r.priority===2?'<span class="signal-pill red">第二优先 · BBUY ↑</span><span class="signal-note">缺少放量确认</span>':'<span class="signal-pill">第一优先 · 黄色放量</span><span class="signal-pill red">BBUY ↑</span>'):`<span class="signal-note" title="${esc(r.error||'本窗口无组合信号')}">${esc(r.error||(r.latest_heavy?'最新日放量 · 暂无组合':r.latest_bbuy?'最新日红柱 · 暂无组合':'本窗口无组合信号'))}</span>`;
     return `<tr data-symbol="${esc(r.symbol)}" class="${selected===r.symbol?'selected':''}"><td><div class="ticker">${esc(r.symbol.replace(/^US\./,''))}${r.stale?'<span class="stale-tag">缓存待更新</span>':''}</div><div class="company">${esc(r.name)}</div></td><td class="price-cell"><span class="num">${valid?fmt(r.close):'—'}</span><small class="${tone(r.change)}">${valid?signed(r.change):''}</small></td><td class="num">${esc(r.signal_date||'—')}</td><td class="num ${r.matched?'accent':''}">${fmt(r.volume_ratio??r.latest_volume_ratio)}×</td><td class="num ${tone(r.vwap_distance)}">${signed(r.vwap_distance)}</td><td>${reason}</td></tr>`;
   }).join('');
   $('resultRows').querySelectorAll('tr').forEach(row=>row.addEventListener('click',()=>selectStock(row.dataset.symbol)));
@@ -50,7 +50,7 @@ async function selectStock(symbol){
     $('chartDataInfo').textContent=`${data.rows.length} 根日线 · 收盘 ${last.date}`;
     const notes=[];if(!data.long_history)notes.push('不足 330 根，长周期趋势线仅作部分历史参考；放量红柱照常计算。');if(data.stale)notes.push('当前为旧缓存，请扫描更新行情。');$('chartNotice').hidden=!notes.length;$('chartNotice').textContent=notes.join(' ');
     chart.setData(data);
-    const events=data.events.slice(0,30);$('signalHistory').innerHTML=events.length?events.map((e,i)=>`<button class="history-card" data-event="${i}"><strong>${esc(e.signal_date)}</strong><span>${e.same_day?'同日配合':'附近配合'} · ${fmt(e.volume_ratio)}×</span><small>黄色 ${esc(e.volume_date)} / 红柱 ${esc(e.bbuy_date)}</small><small>至最新收盘 <span class="${tone(e.since_signal)}">${signed(e.since_signal)}</span></small></button>`).join(''):'<p class="micro">当前缓存历史中没有符合此组合的信号。</p>';
+    const events=data.events.slice(0,30);$('signalHistory').innerHTML=events.length?events.map((e,i)=>`<button class="history-card" data-event="${i}"><strong>${esc(e.signal_date)}</strong><span>${e.priority===2?'第二优先 · 仅红柱':e.same_day?'第一优先 · 同日配合':'第一优先 · 附近配合'} · ${fmt(e.volume_ratio)}×</span><small>${e.priority===2?'缺少放量确认':'黄色 '+esc(e.volume_date)} / 红柱 ${esc(e.bbuy_date)}</small><small>至最新收盘 <span class="${tone(e.since_signal)}">${signed(e.since_signal)}</span></small></button>`).join(''):'<p class="micro">当前缓存历史中没有符合此组合的信号。</p>';
     $('signalHistory').querySelectorAll('[data-event]').forEach(btn=>btn.addEventListener('click',()=>{const e=events[Number(btn.dataset.event)];chart.focus(e.index);}));
   }catch(error){if(serial===chartSerial)toast(error.message,true);}
 }

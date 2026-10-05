@@ -6,7 +6,7 @@ import pandas as pd
 DEFAULTS = dict(volume_n=20, volume_mult=1.5, previous_volume=False,
                 vwap_n=30, sigma=1.5, lookback=5, pair_gap=0,
                 bullish_only=False, require_vwap=False, require_rising=False,
-                require_macd=False, require_bottom=False)
+                require_macd=False, require_bottom=False, include_secondary=True)
 
 
 def _smooth(values, alpha):
@@ -168,11 +168,33 @@ def match_signals(rows, settings=None):
             seen.add((vi,bi))
             events.append(dict(index=end,signal_date=row['date'],volume_date=vol['date'],
                                bbuy_date=rows[bi]['date'],signal_close=row['close'],
-                               volume_ratio=vol.get('volume_ratio'),same_day=vi==bi))
+                               volume_ratio=vol.get('volume_ratio'),same_day=vi==bi,priority=1))
     events.sort(key=lambda x:(x['index'],x['bbuy_date'],x['volume_date']),reverse=True)
+    secondary = []
+    if p['include_secondary'] and not p['require_vwap']:
+        for bi, row in enumerate(rows):
+            if not row.get('bbuy'):
+                continue
+            nearby = rows[max(0,bi-p['pair_gap']):min(len(rows),bi+p['pair_gap']+1)]
+            if any(r.get('heavy') for r in nearby):
+                continue
+            if p['bullish_only'] and row.get('close',0)<=row.get('open',0):
+                continue
+            if p['require_rising'] and not row.get('step_rising'):
+                continue
+            if p['require_macd'] and (row.get('macd') is None or row['macd']<=0):
+                continue
+            if p['require_bottom'] and not any(any(r.get(k) for k in ('macd_bottom','kdj_bottom','rsi_bottom')) for r in rows[max(0,bi-4):bi+1]):
+                continue
+            secondary.append(dict(index=bi,signal_date=row['date'],volume_date=None,
+                                  bbuy_date=row['date'],signal_close=row['close'],
+                                  volume_ratio=row.get('volume_ratio'),same_day=False,priority=2))
+    events += secondary
+    events.sort(key=lambda e:e['index'],reverse=True)
     recent = [e for e in events if e['index'] >= len(rows)-p['lookback']]
+    recent.sort(key=lambda e:(e['priority'],-e['index']))
     chosen = recent[0] if recent else None
-    result = dict(matched=bool(recent), events=events, recent_count=len(recent))
+    result = dict(matched=bool(recent), events=events, recent_count=len(recent), priority=None)
     if chosen:
         result.update(chosen)
         result['since_signal'] = (rows[-1]['close']/chosen['signal_close']-1)*100 if chosen['signal_close'] else None

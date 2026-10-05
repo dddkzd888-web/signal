@@ -46,7 +46,7 @@ class IndicatorTests(unittest.TestCase):
     def test_same_day_pair_requires_both_signals(self):
         rows = [dict(date='2026-01-01', close=10, heavy=True, bbuy=False),
                 dict(date='2026-01-02', close=11, heavy=False, bbuy=True)]
-        self.assertFalse(match_signals(rows, DEFAULTS)['matched'])
+        self.assertFalse(match_signals(rows, dict(DEFAULTS, include_secondary=False))['matched'])
         rows[-1]['heavy'] = True
         self.assertTrue(match_signals(rows, DEFAULTS)['matched'])
 
@@ -68,6 +68,28 @@ class IndicatorTests(unittest.TestCase):
     def test_optional_bullish_candle_is_applied_to_volume_day(self):
         rows = [dict(date='2026-01-01', close=9, open=10, heavy=True, bbuy=True)]
         self.assertFalse(match_signals(rows, dict(DEFAULTS, bullish_only=True))['matched'])
+
+    def test_red_only_is_second_priority_without_inventing_volume_date(self):
+        rows = [dict(date='2026-01-01', close=10, heavy=False, bbuy=True)]
+        result = match_signals(rows, DEFAULTS)
+        self.assertTrue(result['matched'])
+        self.assertEqual(result['priority'], 2)
+        self.assertIsNone(result['volume_date'])
+        self.assertEqual(result['bbuy_date'], '2026-01-01')
+        self.assertFalse(match_signals(rows, dict(DEFAULTS, include_secondary=False))['matched'])
+
+    def test_primary_wins_over_newer_secondary(self):
+        rows = [dict(date='2026-01-01', close=10, heavy=True, bbuy=True),
+                dict(date='2026-01-02', close=11, heavy=False, bbuy=True)]
+        result = match_signals(rows, DEFAULTS)
+        self.assertEqual(result['priority'], 1)
+        self.assertEqual(result['signal_date'], '2026-01-01')
+
+    def test_secondary_obeys_freshness_and_volume_only_is_excluded(self):
+        rows = [dict(date='2026-01-01', close=10, heavy=False, bbuy=True),
+                dict(date='2026-01-02', close=11, heavy=True, bbuy=False)]
+        self.assertFalse(match_signals(rows, dict(DEFAULTS, lookback=1))['matched'])
+        self.assertFalse(match_signals(rows, dict(DEFAULTS, require_vwap=True))['matched'])
 
 
 if __name__ == '__main__':

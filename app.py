@@ -239,12 +239,12 @@ def create_app(manager):
         output = io.StringIO()
         output.write('\ufeff')
         writer = csv.writer(output)
-        writer.writerow(['代码','名称','状态','命中','收盘日期','收盘价','放量日期','红柱日期','组合完成日期','放量倍数','信号后涨幅%','错误','规则参数','数据截止'])
+        writer.writerow(['代码','名称','状态','命中','优先级','收盘日期','收盘价','放量日期','红柱日期','信号日期','信号成交量倍数','信号后涨幅%','错误','规则参数','数据截止'])
         only = request.args.get('matched','1')=='1'
         for r in snapshot['results']:
             if only and not r.get('matched'):
                 continue
-            values = [r.get(k,'') for k in ('symbol','name','status','matched','date','close','volume_date','bbuy_date','signal_date','volume_ratio','since_signal','error')]
+            values = [r.get(k,'') for k in ('symbol','name','status','matched','priority','date','close','volume_date','bbuy_date','signal_date','volume_ratio','since_signal','error')]
             values = ["'"+v if isinstance(v,str) and v.startswith(('=','+','-','@')) else v for v in values]
             writer.writerow(values+[json.dumps(manager.settings,ensure_ascii=False),snapshot.get('cutoff')])
         return Response(output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename="screener-results.csv"'})
