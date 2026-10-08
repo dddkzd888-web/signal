@@ -90,3 +90,5 @@ poll();setInterval(poll,1800);
 ['sortBy','sectorFilter','indexFilter'].forEach(id=>$(id).addEventListener('change',render));
 
 document.querySelectorAll('[data-priority]').forEach(button=>button.addEventListener('click',()=>{priorityFilter=Number(button.dataset.priority);render();}));
+
+document.addEventListener('themechange',()=>chart.draw());

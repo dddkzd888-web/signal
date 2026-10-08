@@ -27,14 +27,15 @@ class SignalChart {
     this.tooltip.style.left=x>this.width*.55?'20px':'auto';this.tooltip.style.right=x>this.width*.55?'auto':'75px';this.tooltip.hidden=false;this.draw();
   }
   volume(v){return v>=1e9?(v/1e9).toFixed(2)+'B':v>=1e6?(v/1e6).toFixed(1)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':String(Math.round(v));}
-  text(text,x,y,color='#8090a5',size=10,align='left'){const c=this.ctx;c.fillStyle=color;c.font=`${size}px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;c.textAlign=align;c.fillText(text,x,y);}
-  line(x1,y1,x2,y2,color,width=1,dash=[]){const c=this.ctx;c.beginPath();c.strokeStyle=color;c.lineWidth=width;c.setLineDash(dash);c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();c.setLineDash([]);}
+  text(text,x,y,color='#8090a5',size=10,align='left'){const c=this.ctx;c.fillStyle=this.light?({'#b8c5d5':'#475569','#8090a5':'#64748b','#a5b4c8':'#526175'}[color]||color):color;c.font=`${size}px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;c.textAlign=align;c.fillText(text,x,y);}
+  line(x1,y1,x2,y2,color,width=1,dash=[]){const c=this.ctx;c.beginPath();c.strokeStyle=this.light?({'#23303c':'#e6ebf2','#202b38':'#e6ebf2','#293442':'#dfe6ef','#25303e':'#e6ebf2','#344154':'#d7e0ea'}[color]||color):color;c.lineWidth=width;c.setLineDash(dash);c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke();c.setLineDash([]);}
   arrow(x,y,color,up=true){const c=this.ctx;const a=up?-1:1;c.fillStyle=color;c.beginPath();c.moveTo(x,y+a*6);c.lineTo(x-5,y-a);c.lineTo(x-2,y-a);c.lineTo(x-2,y-a*7);c.lineTo(x+2,y-a*7);c.lineTo(x+2,y-a);c.lineTo(x+5,y-a);c.closePath();c.fill();}
   draw(){
     const width=this.canvas.parentElement.clientWidth-18;
     if(width<=0)return;const height=this.showKdj?786:680;
     this.canvas.style.height=height+'px';const dpr=window.devicePixelRatio||1;
     this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);
+    this.light=document.documentElement.dataset.theme==='light';
     const c=this.ctx;c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,width,height);
     this.width=width;this.left=10;this.right=width-64;
     if(!this.rows.length){this.text('等待行情…',width/2,height/2,'#8090a5',12,'center');return;}
@@ -63,12 +64,12 @@ class SignalChart {
       const ticks=p.id==='indicator'?[0,20,50,80,100]:[0,1,2,3,4].map(i=>min+(max-min)*i/4);
       ticks.forEach(v=>{this.line(this.left,y(v),this.right,y(v),'#23303c',.6,[3,4]);this.text(p.id==='volume'?this.volume(v):v.toFixed(p.id==='price'?2:p.id==='macd'?1:0),this.right+7,y(v)+3,'#64768a',9);});
       for(let i=0;i<=6;i++){const xx=this.left+(this.right-this.left)*i/6;this.line(xx,plotTop,xx,plotBottom,'#202b38',.6);}
-      const poly=(field,color,lineWidth=1.3)=>{c.strokeStyle=color;c.lineWidth=lineWidth;c.beginPath();let started=false;for(let i=this.start;i<this.end;i++){const v=this.rows[i][field];if(v==null||!Number.isFinite(v)){started=false;continue;}if(!started){c.moveTo(x(i),y(v));started=true;}else c.lineTo(x(i),y(v));}c.stroke();};
+      const poly=(field,color,lineWidth=1.3)=>{c.strokeStyle=this.light?({'#23303c':'#e6ebf2','#202b38':'#e6ebf2','#293442':'#dfe6ef','#25303e':'#e6ebf2','#344154':'#d7e0ea'}[color]||color):color;c.lineWidth=lineWidth;c.beginPath();let started=false;for(let i=this.start;i<this.end;i++){const v=this.rows[i][field];if(v==null||!Number.isFinite(v)){started=false;continue;}if(!started){c.moveTo(x(i),y(v));started=true;}else c.lineTo(x(i),y(v));}c.stroke();};
       c.save();c.beginPath();c.rect(this.left,plotTop,this.right-this.left,plotBottom-plotTop);c.clip();
       if(p.id==='price'){
         poly('upper','#548aff',1);poly('lower','#548aff',1);
         for(let i=this.start+1;i<this.end;i++){const a=this.rows[i-1],b=this.rows[i];if(a.vwap==null||b.vwap==null)continue;this.line(x(i-1),y(a.vwap),x(i),y(b.vwap),b.close>=b.vwap?'#28bd96':'#e56ecb',2);}
-        for(let i=this.start;i<this.end;i++){const r=this.rows[i],xx=x(i),up=r.close>=r.open,color=up?'#f75868':'#28bd96';this.line(xx,y(r.high),xx,y(r.low),color,1);c.fillStyle=r.heavy?'#f3bf62':color;c.fillRect(xx-bw/2,Math.min(y(r.open),y(r.close)),bw,Math.max(1,Math.abs(y(r.open)-y(r.close))));if(r.heavy){c.strokeStyle=color;c.lineWidth=.8;c.strokeRect(xx-bw/2,Math.min(y(r.open),y(r.close)),bw,Math.max(1,Math.abs(y(r.open)-y(r.close))));}if(r.vwap_up)this.arrow(xx,y(r.low)+13,'#f75868');if(r.vwap_down)this.arrow(xx,y(r.high)-13,'#28bd96',false);}
+        for(let i=this.start;i<this.end;i++){const r=this.rows[i],xx=x(i),up=r.close>=r.open,color=up?'#f75868':'#28bd96';this.line(xx,y(r.high),xx,y(r.low),color,1);c.fillStyle=r.heavy?'#f3bf62':color;c.fillRect(xx-bw/2,Math.min(y(r.open),y(r.close)),bw,Math.max(1,Math.abs(y(r.open)-y(r.close))));if(r.heavy){c.strokeStyle=this.light?({'#23303c':'#e6ebf2','#202b38':'#e6ebf2','#293442':'#dfe6ef','#25303e':'#e6ebf2','#344154':'#d7e0ea'}[color]||color):color;c.lineWidth=.8;c.strokeRect(xx-bw/2,Math.min(y(r.open),y(r.close)),bw,Math.max(1,Math.abs(y(r.open)-y(r.close))));}if(r.vwap_up)this.arrow(xx,y(r.low)+13,'#f75868');if(r.vwap_down)this.arrow(xx,y(r.high)-13,'#28bd96',false);}
         this.line(this.left,y(rows[rows.length-1].close),this.right,y(rows[rows.length-1].close),'#8296b566',.7,[2,5]);
       }else if(p.id==='volume'){
         for(let i=this.start;i<this.end;i++){const r=this.rows[i];c.fillStyle=r.heavy?'#f3bf62':r.close>=r.open?'#f7586866':'#28bd9666';c.fillRect(x(i)-bw/2,y(r.volume),bw,plotBottom-y(r.volume));}poly('volume_mean','#f3bf62',1);
