@@ -92,3 +92,17 @@ poll();setInterval(poll,1800);
 document.querySelectorAll('[data-priority]').forEach(button=>button.addEventListener('click',()=>{priorityFilter=Number(button.dataset.priority);render();}));
 
 document.addEventListener('themechange',()=>chart.draw());
+
+(()=>{
+  const handle=$('resultsResize'),viewport=$('resultsViewport');
+  let height=560,drag=null;
+  const setHeight=value=>{height=Math.max(200,Math.min(1600,value));viewport.style.setProperty('--results-height',height+'px');handle.setAttribute('aria-valuenow',String(Math.round(height)));};
+  const save=()=>{try{localStorage.setItem('signal-desk-results-height',String(height));}catch{}};
+  try{const stored=Number(localStorage.getItem('signal-desk-results-height'));if(Number.isFinite(stored)&&stored>=200)setHeight(stored);}catch{}
+  handle.addEventListener('pointerdown',event=>{if(event.button!==0)return;drag={y:event.clientY,height};handle.setPointerCapture(event.pointerId);document.body.classList.add('resizing-results');event.preventDefault();});
+  handle.addEventListener('pointermove',event=>{if(drag)setHeight(drag.height+event.clientY-drag.y);});
+  const finish=()=>{if(!drag)return;drag=null;document.body.classList.remove('resizing-results');save();};
+  handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);handle.addEventListener('lostpointercapture',finish);
+  handle.addEventListener('dblclick',()=>{setHeight(560);save();});
+  handle.addEventListener('keydown',event=>{if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;event.preventDefault();setHeight(event.key==='Home'?200:event.key==='End'?1600:height+(event.key==='ArrowDown'?50:-50));save();});
+})();
