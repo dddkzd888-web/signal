@@ -2,7 +2,7 @@ const $=id=>document.getElementById(id);
 const defaultPool='SPY QQQ SOXX IWM DIA AAPL MSFT NVDA AMZN GOOGL META TSLA AMD AVGO MU INTC NFLX PLTR COIN SMH';
 const numericKeys=['volume_n','volume_mult','vwap_n','sigma','lookback','pair_gap'];
 const boolKeys=['include_secondary','previous_volume','bullish_only','require_vwap','require_rising','require_macd','require_bottom'];
-let state={results:[],running:false,total:0,completed:0,failed:0},mode='candidates',selected=null,chartData=null;
+let state={results:[],running:false,total:0,completed:0,failed:0},mode='candidates',priorityFilter=0,selected=null,chartData=null;
 let pending=false,initialized=false,polling=false,chartSerial=0,toastTimer=null;
 const chart=new SignalChart($('chart'),$('chartTooltip'));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,6 +30,8 @@ function render(){
   }
   $('metadataNote').textContent=`市值单位：美元 · 分类为富途行业 / 概念板块 · 指数可多重归属 · ${state.metadata_updated_at?'更新 '+new Date(state.metadata_updated_at).toLocaleString('zh-CN'):'尚未取得分类，请扫描更新'}${state.metadata_error?' · 分类更新失败，保留旧数据：'+state.metadata_error:''}`;
   let rows=mode==='candidates'?matches:state.results;
+  if(priorityFilter)rows=rows.filter(r=>r.matched&&r.status==='ok'&&r.priority===priorityFilter);
+  document.querySelectorAll('[data-priority]').forEach(button=>{const active=Number(button.dataset.priority)===priorityFilter;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
   const search=$('search').value.trim().toUpperCase();if(search)rows=rows.filter(r=>`${r.symbol} ${r.name}`.toUpperCase().includes(search));
   for(const [id,key] of [['sectorFilter','sectors'],['indexFilter','indices']]){const v=$(id).value;if(v)rows=rows.filter(r=>v==='__unknown'?!(r[key]||[]).length:(r[key]||[]).includes(v));}
   rows=[...rows].sort((a,b)=>($('sortBy').value!=='signal'?(a.market_cap==null?(b.market_cap==null?0:1):b.market_cap==null?-1:$('sortBy').value==='cap_desc'?b.market_cap-a.market_cap:a.market_cap-b.market_cap):0)||Number(b.matched)-Number(a.matched)||(a.priority||99)-(b.priority||99)||(b.signal_date||'').localeCompare(a.signal_date||''));
@@ -86,3 +88,5 @@ $('zoomIn').onclick=()=>chart.zoom(.8);$('zoomOut').onclick=()=>chart.zoom(1.25)
 poll();setInterval(poll,1800);
 
 ['sortBy','sectorFilter','indexFilter'].forEach(id=>$(id).addEventListener('change',render));
+
+document.querySelectorAll('[data-priority]').forEach(button=>button.addEventListener('click',()=>{priorityFilter=Number(button.dataset.priority);render();}));
