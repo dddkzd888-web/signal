@@ -27,6 +27,7 @@ class ScanManager:
         self.settings = validate_settings(store.get('settings',DEFAULTS))
         self.symbols = normalize_symbols(store.get('symbols',DEFAULT_SYMBOLS))
         self.chart_cache = {}
+        self.indicator_cache = {}
 
     def snapshot(self):
         with self.lock:
@@ -60,7 +61,14 @@ class ScanManager:
         bars = [r for r in bars if r['date']<=cutoff]
         if not bars:
             raise RuntimeError('没有已收盘日线')
-        rows = enrich(bars,settings)
+        # Filter-only edits reuse calculated history; price/volume edits invalidate it.
+        signature = tuple(settings[k] for k in ('vwap_n','sigma','volume_n','volume_mult','previous_volume'))
+        cached_indicators = self.indicator_cache.get(symbol)
+        if cached_indicators and cached_indicators[0]==signature and cached_indicators[1]==bars:
+            rows = cached_indicators[2]
+        else:
+            rows = enrich(bars,settings)
+            self.indicator_cache[symbol] = (signature,[dict(r) for r in bars],rows)
         signal = match_signals(rows,settings)
         latest = rows[-1]
         minimum = max(30,settings['volume_n']+int(settings['previous_volume']))
@@ -78,6 +86,9 @@ class ScanManager:
         if stale:
             result.update(matched=False,status='stale',error='数据未到最新已收盘日，仅供历史查看')
         result['historical_count'] = len(signal['events'])
+        for field in ('capital_value','capital_up','capital_down','capital_rising'):
+            result[field] = latest.get(field)
+        result['capital_up_dates'] = [r['date'] for r in rows[-5:] if r.get('capital_up')]
         result['latest_heavy'],result['latest_bbuy'] = latest['heavy'],latest['bbuy']
         events = [{**e,'since_signal':(latest['close']/e['signal_close']-1)*100} for e in signal['events']]
         with self.lock:
@@ -214,6 +225,22 @@ def create_app(manager):
         symbols = normalize_symbols(body.get('symbols',manager.symbols))
         manager.recompute(p,symbols)
         return jsonify(ok=True,settings=p,symbols=symbols)
+
+    @app.post('/api/backtest')
+    def backtest_route():
+        from opportunity import backtest
+        if manager.state['running']:
+            raise RuntimeError('请等待扫描结束再回测')
+        report=backtest(manager.store,manager.symbols,dict(manager.settings),last_closed_session())
+        manager.store.set('backtest_report',report)
+        return jsonify(report)
+
+    @app.get('/api/backtest')
+    def backtest_saved():
+        report=manager.store.get('backtest_report',{})
+        if report:
+            report['rules_changed'] = report.get('settings')!=manager.settings or report.get('symbols')!=manager.symbols or report.get('cutoff')!=last_closed_session()
+        return jsonify(report)
 
     @app.post('/api/scan')
     def scan():

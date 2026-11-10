@@ -6,7 +6,7 @@ import pandas as pd
 DEFAULTS = dict(volume_n=20, volume_mult=1.5, previous_volume=False,
                 vwap_n=30, sigma=1.5, lookback=5, pair_gap=0,
                 bullish_only=False, require_vwap=False, require_rising=False,
-                require_macd=False, require_bottom=False, include_secondary=True)
+                require_macd=False, require_bottom=False, early_mode=False, require_confirmation=False, include_secondary=True)
 
 
 def _smooth(values, alpha):
@@ -128,6 +128,7 @@ def enrich(bars, settings=None):
     f['flame'] = (flame*1.2).where((flame>0)&(flame>flame.shift(1)),0)
     double, count, positive_sum = [], 0, 0
     gold = X(diff,dea)
+    f['macd_cross'] = gold
     for i in range(len(f)):
         if diff.iloc[i] >= 0:
             count, positive_sum = 0, 0
@@ -136,6 +137,27 @@ def enrich(bars, settings=None):
             positive_sum += max(macd.iloc[i],0)
         double.append(bool(gold.iloc[i] and diff.iloc[i]<0 and count>=2 and positive_sum>1))
     f['double_gold'] = double
+    # Supplied approximate EWMA / long-term variance anchor, annualized in %.
+    ret = np.log(c.where(c > 0) / c.shift(1).where(c.shift(1) > 0))
+    squared = ret.pow(2) * 10000
+    volindex = (.4 * E(squared, 10) + .6 * mean(squared, 60)).pow(.5) * math.sqrt(252)
+    volma = mean(volindex, 5)
+    f['ema5'], f['ema20'] = E(c,5), E(c,20)
+    tr = pd.concat([h-l,(h-c.shift(1)).abs(),(l-c.shift(1)).abs()],axis=1).max(axis=1)
+    f['atr14'] = mean(tr,14)
+    f['low30'],f['low60'],f['high60'] = low(l,30),l.rolling(60,min_periods=60).min(),h.rolling(60,min_periods=60).max()
+    f['dollar_volume20'] = mean(c*v,20)
+    f['volindex'], f['volma'] = volindex, volma
+    f['vol_panic_buy'] = (high(volindex, 20) == volindex.shift(1)) & X(volma, volindex) & (c < mean(c, 20))
+    f['vol_warning'] = (volindex < low(volindex, 60) * 1.1) & X(volindex, volma)
+    # Supplied '主力资金': a price-derived deviation oscillator, not money flows.
+    deviation = _div(c, mean(c, 120)) - 1
+    var1 = _div(c, 1 + deviation - mean(deviation, 3))
+    capital = (_div(c, var1) - 1) * 100
+    f['capital_value'] = capital
+    zero = pd.Series(0., index=f.index)
+    f['capital_up'], f['capital_down'] = X(capital, zero), X(zero, capital)
+    f['capital_rising'] = capital > capital.shift(1)
     records = []
     for row in f.to_dict('records'):
         records.append({key: (None if isinstance(val,(float,np.floating)) and not math.isfinite(val) else val.item() if isinstance(val,np.generic) else val) for key,val in row.items()})
@@ -192,10 +214,24 @@ def match_signals(rows, settings=None):
     events += secondary
     events.sort(key=lambda e:e['index'],reverse=True)
     recent = [e for e in events if e['index'] >= len(rows)-p['lookback']]
+    # Price-derived volatility is a risk display, never a bullish admission rule.
+    confirmation_dates = [r['date'] for r in rows[-5:] if r.get('macd_cross') or any(r.get(k) for k in ('macd_bottom','kdj_bottom','rsi_bottom'))]
+    if p['require_confirmation'] and not confirmation_dates:
+        recent = []
     recent.sort(key=lambda e:(e['priority'],-e['index']))
+    from opportunity import assess
+    early = assess(rows)
+    if p['early_mode'] and not early['early_ok']:
+        recent = []
     chosen = recent[0] if recent else None
-    result = dict(matched=bool(recent), events=events, recent_count=len(recent), priority=None)
+    result = dict(matched=bool(recent), events=events, recent_count=len(recent), priority=None, confirmation_dates=confirmation_dates, confirmation_grade=None, confirmation_rank=0, confirmation_reasons=[], **early)
     if chosen:
         result.update(chosen)
+        bottom = any(any(r.get(k) for k in ('macd_bottom','kdj_bottom','rsi_bottom')) for r in rows[-5:])
+        macd_cross = any(r.get('macd_cross') for r in rows[-5:])
+        reasons = (['近5日底背离'] if bottom else []) + (['近5日MACD金叉'] if macd_cross else [])
+        reasons += ['BBUY红柱'] + (['黄色放量配合'] if chosen['priority']==1 else ['尚无放量配合'])
+        grade = ('A' if chosen['priority']==1 else 'B') if confirmation_dates else 'C'
+        result.update(confirmation_grade=grade,confirmation_rank={'A':3,'B':2,'C':1}[grade],confirmation_reasons=reasons)
         result['since_signal'] = (rows[-1]['close']/chosen['signal_close']-1)*100 if chosen['signal_close'] else None
     return result

@@ -57,6 +57,11 @@ def normalize_symbols(text):
 def validate_settings(settings):
     if not isinstance(settings,dict):
         raise ValueError('筛选设置格式错误')
+    settings = dict(settings)
+    # Migrate earlier clients/settings without restoring the retired warning gate.
+    retired = settings.pop('require_vol_warning',False)
+    if not isinstance(retired,bool):
+        raise ValueError('旧版预警参数必须为开关值')
     p = dict(DEFAULTS)
     if set(settings)-set(p):
         raise ValueError('未知筛选参数')
@@ -153,6 +158,8 @@ class Gateway:
             logger.log_path = str(Path(self.store.path).parent/'opend-logs')
             Path(logger.log_path).mkdir(exist_ok=True)
             self.ctx = ft.OpenQuoteContext(host='127.0.0.1',port=11111)
+            # SDK defaults to waiting forever for reconnection before sending.
+            self.ctx.set_sync_query_connect_timeout(15)
         return self.ctx
 
     def _call(self,func,*args,**kwargs):

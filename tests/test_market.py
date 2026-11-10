@@ -1,9 +1,28 @@
 import unittest
 import tempfile
+from unittest.mock import patch,Mock
+from pathlib import Path
+from types import SimpleNamespace
 from market import normalize_symbols, validate_settings, last_closed_session, Store, merge_history
 
 
 class MarketTests(unittest.TestCase):
+    def test_old_warning_setting_is_discarded_without_changing_other_rules(self):
+        old=dict(volume_mult=2,require_vol_warning=True)
+        clean=validate_settings(old)
+        self.assertNotIn('require_vol_warning',clean)
+        self.assertEqual(clean['volume_mult'],2)
+        self.assertTrue(old['require_vol_warning'])
+
+    def test_opend_reconnection_wait_is_bounded(self):
+        from market import Gateway
+        with tempfile.TemporaryDirectory() as folder:
+            ctx=Mock()
+            with patch('futu.OpenQuoteContext',return_value=ctx):
+                gateway=Gateway(SimpleNamespace(path=Path(folder)/'cache.sqlite'))
+                self.assertIs(gateway._connect(),ctx)
+                ctx.set_sync_query_connect_timeout.assert_called_once_with(15)
+
     def test_us_symbols_are_deduplicated_without_rewriting_foreign_codes(self):
         self.assertEqual(normalize_symbols('aapl, US.AAPL\nBRK.B QQQ'), ['US.AAPL','US.BRK.B','US.QQQ'])
         with self.assertRaises(ValueError):

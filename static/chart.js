@@ -2,7 +2,7 @@
 class SignalChart {
   constructor(canvas, tooltip) {
     this.canvas=canvas; this.ctx=canvas.getContext('2d'); this.tooltip=tooltip;
-    this.rows=[]; this.count=100; this.end=0; this.hover=null; this.showKdj=false;
+    this.rows=[]; this.count=100; this.end=0; this.hover=null; this.showKdj=false; this.showVolatility=true; this.showCapital=true;
     this.drag=null; this.focusIndex=null;
     new ResizeObserver(()=>this.draw()).observe(canvas.parentElement);
     canvas.addEventListener('pointerdown',e=>{this.drag={x:e.clientX,end:this.end};canvas.setPointerCapture(e.pointerId);});
@@ -22,7 +22,7 @@ class SignalChart {
     if(index<this.start||index>=this.end){this.hover=null;this.tooltip.hidden=true;this.draw();return;}
     this.hover=index;const r=this.rows[index];const n=v=>v==null?'—':Number(v).toFixed(2);
     this.tooltip.replaceChildren();
-    const lines=[r.date,`开 ${n(r.open)}  高 ${n(r.high)}`,`低 ${n(r.low)}  收 ${n(r.close)}`,`成交量 ${this.volume(r.volume)} · 均量 ${n(r.volume_ratio)}×`,`VWAP ${n(r.vwap)}`,`DIF ${n(r.diff)} · DEA ${n(r.dea)}`,`${r.heavy?'黄色放量 K 线 ✓':'未放量'}  ${r.bbuy?'BBUY 红柱 ↑':'无 BBUY 红柱'}`];
+    const lines=[r.date,`开 ${n(r.open)}  高 ${n(r.high)}`,`低 ${n(r.low)}  收 ${n(r.close)}`,`成交量 ${this.volume(r.volume)} · 均量 ${n(r.volume_ratio)}×`,`VWAP ${n(r.vwap)}`,`主力资金（价格推算）${n(r.capital_value)}%`,`年化波动率 ${n(r.volindex)}% · 均线 ${n(r.volma)}%`,`DIF ${n(r.diff)} · DEA ${n(r.dea)}`,`${r.heavy?'黄色放量 K 线 ✓':'未放量'}  ${r.bbuy?'BBUY 红柱 ↑':'无 BBUY 红柱'}`];
     lines.forEach((text,i)=>{const d=document.createElement('div');d.textContent=text;if(i===0)d.style.color='#f3bf62';this.tooltip.append(d);});
     this.tooltip.style.left=x>this.width*.55?'20px':'auto';this.tooltip.style.right=x>this.width*.55?'auto':'75px';this.tooltip.hidden=false;this.draw();
   }
@@ -32,7 +32,7 @@ class SignalChart {
   arrow(x,y,color,up=true){const c=this.ctx;const a=up?-1:1;c.fillStyle=color;c.beginPath();c.moveTo(x,y+a*6);c.lineTo(x-5,y-a);c.lineTo(x-2,y-a);c.lineTo(x-2,y-a*7);c.lineTo(x+2,y-a*7);c.lineTo(x+2,y-a);c.lineTo(x+5,y-a);c.closePath();c.fill();}
   draw(){
     const width=this.canvas.parentElement.clientWidth-18;
-    if(width<=0)return;const height=this.showKdj?786:680;
+    if(width<=0)return;const height=680+(this.showKdj?106:0)+(this.showVolatility?140:0)+(this.showCapital?140:0);
     this.canvas.style.height=height+'px';const dpr=window.devicePixelRatio||1;
     this.canvas.width=Math.round(width*dpr);this.canvas.height=Math.round(height*dpr);
     this.light=document.documentElement.dataset.theme==='light';
@@ -44,7 +44,9 @@ class SignalChart {
     const rows=this.rows.slice(this.start,this.end);const x=i=>this.left+(i-this.start+.5)*this.step;
     const bw=Math.max(1,Math.min(12,this.step*.62));
     const panels=[{id:'price',label:'日线 · 前复权',top:0,h:290},{id:'volume',label:'成交量',top:290,h:85},{id:'indicator',label:'NEW7 · 自定义副图',top:375,h:155},{id:'macd',label:'MACD',top:530,h:125}];
-    if(this.showKdj)panels.push({id:'kdj',label:'KDJ',top:655,h:106});
+    if(this.showVolatility)panels.push({id:'volatility',label:'年化波动率 (%)',top:655,h:140});
+    if(this.showCapital)panels.push({id:'capital',label:'主力资金 · 价格推算 (%)',top:655+(this.showVolatility?140:0),h:140});
+    if(this.showKdj)panels.push({id:'kdj',label:'KDJ',top:655+(this.showVolatility?140:0)+(this.showCapital?140:0),h:106});
     const bottom=height-25;
     const visible=this.hover==null?this.end-1:this.hover;
     const current=this.rows[visible];const f=v=>v==null?'—':v.toFixed(2);
@@ -59,10 +61,12 @@ class SignalChart {
       }else if(p.id==='volume'){min=0;max=Math.max(1,...rows.map(r=>r.volume))*1.15;}
       else if(p.id==='indicator'){min=0;max=Math.max(110,...rows.map(r=>r.step||0));}
       else if(p.id==='macd'){const vals=rows.flatMap(r=>[r.diff,r.dea,r.macd]).filter(v=>v!=null);min=Math.min(0,...vals);max=Math.max(0,...vals);let pad=(max-min||1)*.15;min-=pad;max+=pad;}
+      else if(p.id==='capital'){const vals=rows.map(r=>r.capital_value).filter(v=>v!=null&&Number.isFinite(v));min=Math.min(0,...vals);max=Math.max(0,...vals);const pad=(max-min||1)*.15;min-=pad;max+=pad;}
+      else if(p.id==='volatility'){const vals=rows.flatMap(r=>[r.volindex,r.volma]).filter(v=>v!=null&&Number.isFinite(v));min=Math.max(0,Math.min(0,...vals));max=Math.max(1,...vals)*1.15;}
       else{min=Math.min(-5,...rows.map(r=>r.j==null?0:r.j));max=Math.max(105,...rows.map(r=>r.j||0));}
       const y=value=>plotBottom-(value-min)/(max-min)*(plotBottom-plotTop);
       const ticks=p.id==='indicator'?[0,20,50,80,100]:[0,1,2,3,4].map(i=>min+(max-min)*i/4);
-      ticks.forEach(v=>{this.line(this.left,y(v),this.right,y(v),'#23303c',.6,[3,4]);this.text(p.id==='volume'?this.volume(v):v.toFixed(p.id==='price'?2:p.id==='macd'?1:0),this.right+7,y(v)+3,'#64768a',9);});
+      ticks.forEach(v=>{this.line(this.left,y(v),this.right,y(v),'#23303c',.6,[3,4]);this.text(p.id==='volume'?this.volume(v):v.toFixed(p.id==='price'?2:['macd','capital'].includes(p.id)?2:0),this.right+7,y(v)+3,'#64768a',9);});
       for(let i=0;i<=6;i++){const xx=this.left+(this.right-this.left)*i/6;this.line(xx,plotTop,xx,plotBottom,'#202b38',.6);}
       const poly=(field,color,lineWidth=1.3)=>{c.strokeStyle=this.light?({'#23303c':'#e6ebf2','#202b38':'#e6ebf2','#293442':'#dfe6ef','#25303e':'#e6ebf2','#344154':'#d7e0ea'}[color]||color):color;c.lineWidth=lineWidth;c.beginPath();let started=false;for(let i=this.start;i<this.end;i++){const v=this.rows[i][field];if(v==null||!Number.isFinite(v)){started=false;continue;}if(!started){c.moveTo(x(i),y(v));started=true;}else c.lineTo(x(i),y(v));}c.stroke();};
       c.save();c.beginPath();c.rect(this.left,plotTop,this.right-this.left,plotBottom-plotTop);c.clip();
@@ -85,12 +89,21 @@ class SignalChart {
       }else if(p.id==='macd'){
         this.line(this.left,y(0),this.right,y(0),'#64768a',.7);
         for(let i=this.start;i<this.end;i++){const r=this.rows[i];if(r.macd==null)continue;c.fillStyle=r.macd>0?'#f75868':'#28bd96';c.fillRect(x(i)-Math.max(1,bw*.2),Math.min(y(r.macd),y(0)),Math.max(1,bw*.4),Math.max(1,Math.abs(y(r.macd)-y(0))));}poly('diff','#ff9b48',1.5);poly('dea','#38c2ee',1.5);
+      }else if(p.id==='capital'){
+        this.line(this.left,y(0),this.right,y(0),this.light?'#b6800b':'#f3bf62',1);
+        for(let i=this.start;i<this.end;i++){const value=this.rows[i].capital_value;if(value==null||value===0)continue;c.fillStyle=value>0?'#f75868':'#28bd96';c.fillRect(x(i)-bw*.35,Math.min(y(value),y(0)),Math.max(1,bw*.7),Math.max(1,Math.abs(y(value)-y(0))));}
+        poly('capital_value',this.light?'#b6800b':'#f3bf62',2);
+      }else if(p.id==='volatility'){
+        poly('volindex',this.light?'#334155':'#ffffff',2);poly('volma',this.light?'#b6800b':'#f3bf62',1);
+        for(let i=this.start;i<this.end;i++){const r=this.rows[i];if(r.volindex==null)continue;if(r.vol_panic_buy)this.arrow(x(i),y(r.volindex*1.05),'#f75868');}
       }else{poly('k','#ff9b48',1.3);poly('d','#38c2ee',1.3);poly('j','#e972ed',1.3);}
       c.restore();
       if(p.id==='price')this.text(`VWAP ${f(current.vwap)}  上轨 ${f(current.upper)}  下轨 ${f(current.lower)}`,this.left+112,p.top+17,'#6f95c9',9);
       if(p.id==='volume')this.text(`${this.volume(current.volume)}   ${f(current.volume_ratio)} × 均量`,this.left+65,p.top+17,'#f3bf62',9);
       if(p.id==='indicator')this.text(`BBUY ${current.bbuy?'↑ 红柱':'—'}   阶梯 ${f(current.step)}   趋势 ${f(current.trend_line)}`,this.left+142,p.top+17,'#8ab997',9);
       if(p.id==='macd')this.text(`DIF ${f(current.diff)}   DEA ${f(current.dea)}   MACD ${f(current.macd)}`,this.left+65,p.top+17,'#a896cc',9);
+      if(p.id==='volatility')this.text(`VOLINDEX ${f(current.volindex)}%   VOLMA ${f(current.volma)}%${current.vol_panic_buy?'  ↑ 恐慌回落信号':''}`,this.left+125,p.top+17,this.light?'#526175':'#b8c5d5',10);
+      if(p.id==='capital')this.text(current.capital_value==null?'历史不足122根日线':`${f(current.capital_value)}% · ${current.capital_up?'上穿零轴':current.capital_down?'下穿零轴':current.capital_rising?'动能抬升':'动能回落'}`,this.left+180,p.top+17,this.light?'#b6800b':'#f3bf62',10);
       if(p.id==='kdj')this.text(`K ${f(current.k)}   D ${f(current.d)}   J ${f(current.j)}`,this.left+65,p.top+17,'#a896cc',9);
       if(this.focusIndex!=null&&this.focusIndex>=this.start&&this.focusIndex<this.end){c.fillStyle='#f3bf6212';c.fillRect(x(this.focusIndex)-this.step/2,plotTop,this.step,plotBottom-plotTop);this.line(x(this.focusIndex),plotTop,x(this.focusIndex),plotBottom,'#f3bf62',.8,[3,3]);}
       if(this.hover!=null&&this.hover>=this.start&&this.hover<this.end)this.line(x(this.hover),plotTop,x(this.hover),plotBottom,'#aabbd0',.8,[3,3]);

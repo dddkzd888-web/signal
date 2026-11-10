@@ -91,6 +91,55 @@ class IndicatorTests(unittest.TestCase):
         self.assertFalse(match_signals(rows, dict(DEFAULTS, lookback=1))['matched'])
         self.assertFalse(match_signals(rows, dict(DEFAULTS, require_vwap=True))['matched'])
 
+    def test_removed_volatility_warning_cannot_block_a_candidate(self):
+        rows=[dict(date='2026-01-01',close=10,heavy=False,bbuy=True)]
+        self.assertTrue(match_signals(rows,dict(require_vol_warning=True))['matched'])
+
+    def test_confirmation_window_and_grades_do_not_use_old_or_future_signals(self):
+        rows=[dict(date=str(i),close=10,heavy=False,bbuy=i==8,macd_cross=i==4) for i in range(10)]
+        self.assertFalse(match_signals(rows,dict(require_confirmation=True))['matched'])
+        rows[5]['macd_cross']=True
+        b=match_signals(rows,dict(require_confirmation=True))
+        self.assertTrue(b['matched'])
+        self.assertEqual(b['confirmation_grade'],'B')
+        rows[8]['heavy']=True
+        self.assertEqual(match_signals(rows,dict(require_confirmation=True))['confirmation_grade'],'A')
+        rows[4]['macd_cross']=False;rows[5]['macd_cross']=False;rows[9]['macd_bottom']=True
+        self.assertTrue(match_signals(rows,dict(require_confirmation=True))['matched'])
+        self.assertFalse(match_signals(rows[:9],dict(require_confirmation=True))['matched'])
+
+    def test_capital_indicator_matches_supplied_formula_without_future_data(self):
+        closes=[100+.1*i+3*math.sin(i/3) for i in range(160)]
+        rows=enrich([bar(i,close=c) for i,c in enumerate(closes)])
+        self.assertIsNone(rows[120]['capital_value'])
+        deviation=[None if i<119 else closes[i]/(sum(closes[i-119:i+1])/120)-1 for i in range(len(closes))]
+        expected=[]
+        for i in range(121,len(closes)):
+            var1=closes[i]/(1+deviation[i]-sum(deviation[i-2:i+1])/3)
+            value=(closes[i]/var1-1)*100
+            expected.append(value)
+            self.assertAlmostEqual(rows[i]['capital_value'],value,places=10)
+            if i>121:
+                self.assertEqual(rows[i]['capital_up'],value>0 and expected[-2]<=0)
+                self.assertEqual(rows[i]['capital_down'],value<0 and expected[-2]>=0)
+        self.assertEqual(enrich([bar(i,close=c) for i,c in enumerate(closes[:140])]),rows[:140])
+
+    def test_capital_flat_price_is_zero_and_never_crosses(self):
+        rows=enrich([bar(i) for i in range(140)])
+        self.assertTrue(all(r['capital_value']==0 for r in rows[121:]))
+        self.assertFalse(any(r['capital_up'] or r['capital_down'] for r in rows))
+
+    def test_volindex_matches_constant_log_returns_and_warmup(self):
+        bars = [dict(date=str(i),open=100*math.exp(.01*i),high=100*math.exp(.01*i),low=100*math.exp(.01*i),close=100*math.exp(.01*i),volume=100) for i in range(80)]
+        rows=enrich(bars,DEFAULTS)
+        self.assertIsNone(rows[59]['volindex'])
+        self.assertAlmostEqual(rows[60]['volindex'],math.sqrt(252),places=8)
+        self.assertIsNone(rows[63]['volma'])
+        self.assertAlmostEqual(rows[64]['volma'],math.sqrt(252),places=8)
+        flat = enrich([dict(b,open=100,high=100,low=100,close=100) for b in bars])
+        self.assertFalse(any(r['vol_panic_buy'] or r['vol_warning'] for r in flat))
+        self.assertEqual(enrich(bars[:70]), rows[:70])
+
 
 if __name__ == '__main__':
     unittest.main()

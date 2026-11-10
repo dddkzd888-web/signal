@@ -37,6 +37,20 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.client.post('/api/settings',json=dict(settings=dict(DEFAULTS,volume_mult=2))).status_code,200)
         self.assertEqual(self.store.get('settings')['volume_mult'],2)
 
+    def test_settings_recalculates_cached_pool_without_quote_requests(self):
+        from unittest.mock import patch
+        from market import last_closed_session
+        cutoff=last_closed_session()
+        bars,name=self.manager.gateway.history('US.QQQ',cutoff)
+        self.store.save_bars('US.QQQ',bars,cutoff,name)
+        with patch.object(self.manager.gateway,'history',side_effect=AssertionError('must not request quotes')):
+            for enabled in (True,False):
+                r=self.client.post('/api/settings',json=dict(settings=dict(DEFAULTS,require_confirmation=enabled),symbols=['US.QQQ']))
+                self.assertEqual(r.status_code,200)
+                self.assertEqual(self.manager.settings['require_confirmation'],enabled)
+                self.assertEqual(self.manager.snapshot()['completed'],1)
+                self.assertFalse(self.manager.snapshot()['running'])
+
     def test_failure_is_not_reported_as_no_match(self):
         self.manager.run(['US.BAD'],DEFAULTS,False)
         result = self.manager.snapshot()
@@ -88,3 +102,22 @@ class AppTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class IndicatorReuseTests(unittest.TestCase):
+    def test_filter_change_reuses_indicators_but_prices_and_parameters_invalidate(self):
+        from unittest.mock import patch
+        from indicators import enrich
+        from market import last_closed_session
+        with tempfile.TemporaryDirectory() as tmp:
+            store=Store(tmp+'/cache.sqlite'); manager=ScanManager(store,FakeGateway())
+            cutoff=last_closed_session(); bars,name=FakeGateway().history('US.QQQ',cutoff)
+            store.save_bars('US.QQQ',bars,cutoff,name)
+            with patch('app.enrich',wraps=enrich) as calc:
+                manager.evaluate('US.QQQ',bars,name,DEFAULTS,cutoff)
+                manager.evaluate('US.QQQ',bars,name,dict(DEFAULTS,require_macd=True),cutoff)
+                self.assertEqual(calc.call_count,1)
+                manager.evaluate('US.QQQ',bars,name,dict(DEFAULTS,volume_mult=3),cutoff)
+                self.assertEqual(calc.call_count,2)
+                changed=[dict(r) for r in bars];changed[-1]['close']=10.5
+                manager.evaluate('US.QQQ',changed,name,dict(DEFAULTS,volume_mult=3),cutoff)
+                self.assertEqual(calc.call_count,3)
