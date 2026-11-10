@@ -4,17 +4,3 @@ __pycache__/
 *.pyc
 .superpowers/
 .DS_Store
-
-# Local screenshots, watchlist exports, and generated backtest data.
-/preview-*.jpg
-/preview-*.png
-/观察池-*.csv
-/观察池-*.json
-/观察池-*.txt
-/static/reports/
-/reports/**/*.csv
-/reports/**/*.json
-/reports/**/*.json.gz
-/reports/**/*.log
-/reports/**/*.html
-/reports/**/*.jpg

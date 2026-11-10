@@ -1,0 +1,238 @@
+{
+  "2026-10-22": {
+    "cutoff": "2026-10-22",
+    "completed": 394,
+    "total": 394,
+    "failed": 0,
+    "statuses": {
+      "ok": 393,
+      "insufficient": 1
+    },
+    "priorities": {
+      "2": 6
+    },
+    "grades": {
+      "B": 6
+    },
+    "candidates": [
+      "US.VZ",
+      "US.PNC",
+      "US.KKR",
+      "US.FITB",
+      "US.TTWO",
+      "US.IWM"
+    ],
+    "new": [
+      "US.IWM",
+      "US.TTWO",
+      "US.VZ"
+    ]
+  },
+  "2026-10-23": {
+    "cutoff": "2026-10-23",
+    "completed": 394,
+    "total": 394,
+    "failed": 0,
+    "statuses": {
+      "ok": 393,
+      "insufficient": 1
+    },
+    "priorities": {
+      "2": 1
+    },
+    "grades": {
+      "B": 1
+    },
+    "candidates": [
+      "US.AXON"
+    ]
+  },
+  "2026-10-26": {
+    "cutoff": "2026-10-26",
+    "status": "complete",
+    "completed": 394,
+    "total": 394,
+    "failed": 0,
+    "statuses": {
+      "ok": 393,
+      "insufficient": 1
+    },
+    "priorities": {
+      "2": 8
+    },
+    "grades": {
+      "B": 8
+    },
+    "candidates": [
+      "US.GS",
+      "US.KKR",
+      "US.APO",
+      "US.STT",
+      "US.FER",
+      "US.NTRS",
+      "US.RJF",
+      "US.IWM"
+    ]
+  },
+  "2026-10-27": {
+    "cutoff": "2026-10-27",
+    "status": "partial",
+    "completed": 394,
+    "total": 394,
+    "failed": 2,
+    "metadata_error": "网络中断",
+    "statuses": {
+      "ok": 391,
+      "error": 2,
+      "insufficient": 1
+    },
+    "priorities": {
+      "2": 11
+    },
+    "grades": {
+      "B": 11
+    },
+    "candidates": [
+      "US.MS",
+      "US.GS",
+      "US.AME",
+      "US.DAL",
+      "US.STT",
+      "US.UAL",
+      "US.NTRS",
+      "US.RJF",
+      "US.RYAAY",
+      "US.ECHO",
+      "US.IWM"
+    ]
+  },
+  "2026-10-28": {
+    "cutoff": "2026-10-28",
+    "status": "blocked",
+    "reason": "OpenD连接超时，重试连接未成功，未发起行情扫描",
+    "completed": 0,
+    "total": 394,
+    "candidates": null,
+    "last_complete_cutoff": "2026-10-27"
+  },
+  "2026-10-29": {
+    "cutoff": "2026-10-29",
+    "status": "complete",
+    "completed": 394,
+    "total": 394,
+    "failed": 0,
+    "metadata_error": null,
+    "settings": {
+      "volume_n": 20,
+      "volume_mult": 2,
+      "previous_volume": true,
+      "vwap_n": 30,
+      "sigma": 1.5,
+      "lookback": 5,
+      "pair_gap": 0,
+      "bullish_only": false,
+      "require_vwap": false,
+      "require_rising": false,
+      "require_macd": false,
+      "require_bottom": false,
+      "early_mode": true,
+      "require_confirmation": true,
+      "include_secondary": true
+    },
+    "statuses": {
+      "ok": 393,
+      "insufficient": 1
+    },
+    "priorities": {
+      "2": 8
+    },
+    "grades": {
+      "B": 8
+    },
+    "candidates": [
+      "US.ASML",
+      "US.GS",
+      "US.C",
+      "US.ETN",
+      "US.DAL",
+      "US.F",
+      "US.STT",
+      "US.UAL"
+    ],
+    "new": [
+      "US.ASML",
+      "US.C",
+      "US.ETN",
+      "US.F"
+    ]
+  },
+  "2026-10-30": {
+    "cutoff": "2026-10-30",
+    "status": "complete",
+    "completed": 394,
+    "total": 394,
+    "failed": 0,
+    "metadata_error": null,
+    "settings": {
+      "volume_n": 20,
+      "volume_mult": 2,
+      "previous_volume": true,
+      "vwap_n": 30,
+      "sigma": 1.5,
+      "lookback": 5,
+      "pair_gap": 0,
+      "bullish_only": false,
+      "require_vwap": false,
+      "require_rising": false,
+      "require_macd": false,
+      "require_bottom": false,
+      "early_mode": true,
+      "require_confirmation": true,
+      "include_secondary": true
+    },
+    "statuses": {
+      "ok": 393,
+      "insufficient": 1
+    },
+    "priorities": {
+      "2": 5
+    },
+    "grades": {
+      "B": 5
+    },
+    "candidates": [
+      "US.VZ",
+      "US.RVMD",
+      "US.TKO",
+      "US.IR",
+      "US.RYAAY"
+    ],
+    "new": [
+      "US.IR",
+      "US.RVMD",
+      "US.RYAAY",
+      "US.TKO",
+      "US.VZ"
+    ]
+  },
+  "2026-11-02": {
+    "cutoff": "2026-11-02",
+    "status": "partial_cancelled_network",
+    "completed": 28,
+    "total": 394,
+    "failed": 22,
+    "cancelled": true,
+    "coverage": 6,
+    "priorities": {},
+    "candidates": [],
+    "reason": "持续连接超时和网络中断，已停止剩余扫描，候选仅为部分覆盖"
+  },
+  "2026-11-05": {
+    "cutoff": "2026-11-05",
+    "status": "blocked",
+    "reason": "OpenD未监听11111，未发起扫描",
+    "completed": 0,
+    "total": 394,
+    "candidates": null
+  }
+}

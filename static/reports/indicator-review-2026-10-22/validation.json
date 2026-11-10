@@ -1,0 +1,14 @@
+{
+  "checked_trades": 113293,
+  "passed": true,
+  "checks": [
+    "next-open entry",
+    "exact five actual bars",
+    "no future exit",
+    "10bps roundtrip costs",
+    "nonoverlap per-stock-per-signal",
+    "sample counts and mean return reconciliation",
+    "M7 membership",
+    "Google share-class deduplication"
+  ]
+}

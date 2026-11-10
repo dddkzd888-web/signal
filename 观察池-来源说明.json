@@ -1,0 +1,25 @@
+{
+  "retrieved_at": "2026-10-11T16:02:47.399979+00:00",
+  "source": "Futu OpenD 127.0.0.1:11111",
+  "minimum_market_cap_usd": 25000000000,
+  "exchanges": [
+    "US_NYSE",
+    "US_NASDAQ"
+  ],
+  "index_union": [
+    "US..IXIC",
+    "US..SPX",
+    "US..NDX"
+  ],
+  "qualifying_count": 388,
+  "retained_previous_symbols": [
+    "US.SPY",
+    "US.QQQ",
+    "US.SOXX",
+    "US.IWM",
+    "US.DIA",
+    "US.SMH"
+  ],
+  "pool_total": 394,
+  "note": "按当前OpenD市值重建观察池，保留6只ETF；市值门槛为闭区间≥250亿美元，扫描使用保存股票池。"
+}
